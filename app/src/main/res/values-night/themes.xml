@@ -1,0 +1,19 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Base application theme. -->
+    <style name="Theme.Tumark" parent="Theme.MaterialComponents.DayNight.DarkActionBar">
+        <!-- Primary brand color. -->
+        <item name="colorPrimary">@color/md_black_1000</item>
+        <item name="colorPrimaryVariant">@color/md_black_1000</item>
+        <item name="colorOnPrimary">@color/md_white_1000</item>
+        <!-- Secondary brand color. -->
+        <item name="colorSecondary">@color/md_deep_orange_700</item>
+        <item name="colorSecondaryVariant">@color/md_deep_orange_800</item>
+        <item name="colorOnSecondary">@color/md_white_1000</item>
+        <!-- Status bar color. -->
+        <item name="android:statusBarColor" tools:targetApi="l">?attr/colorPrimaryVariant</item>
+        <!-- Customize your theme here. -->
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+
+    <style name="Theme.Tumark.AppBarOverlay" parent="ThemeOverlay.AppCompat.DayNight" />
+</resources>

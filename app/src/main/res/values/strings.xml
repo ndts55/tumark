@@ -1,0 +1,14 @@
+<resources>
+    <string name="app_name">tumark</string>
+    <string name="action_settings">Settings</string>
+    <!-- Strings used for fragments for navigation -->
+    <string name="main_fragment_label">Tumark</string>
+
+    <string name="grade_channel_name">Grade Notification</string>
+    <string name="grade_channel_description">Channel for grade update notifications.</string>
+    <string name="reload_grade_data">Reload grade data</string>
+    <string name="tu_id">TU-ID</string>
+    <string name="password">Password</string>
+    <string name="tu_id_key">tu_id_key</string>
+    <string name="password_key">password_key</string>
+</resources>
