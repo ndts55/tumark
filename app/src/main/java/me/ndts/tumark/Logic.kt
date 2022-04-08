@@ -3,12 +3,12 @@ package me.ndts.tumark
 import android.content.Context
 import android.util.Log
 
-data class NotificationData(val title: String, val text: String)
 
 suspend fun tumarkRun(context: Context) {
     val tuId = context.readTuId()
     val password = context.readPassword()
-    val dao = context.database().examEntryDao()
+    val db = context.database()
+    val dao = db.examEntryDao()
     tumarkRun(
         tuId,
         password,
@@ -17,12 +17,12 @@ suspend fun tumarkRun(context: Context) {
         deleteEntry = dao::delete,
         updateEntry = dao::update,
         insertEntry = dao::insert,
-        notifyImportant = { ns ->
-            ns.forEach { n ->
+        notify = { diff ->
+            diff.updated.forEach {
                 NotificationHelper.notify(
                     context,
-                    n.title,
-                    n.text
+                    "${it.identifier}: ${it.grade}",
+                    "${it.name} (${it.credits} cp) updated to ${it.status}."
                 )
             }
         },
@@ -30,6 +30,7 @@ suspend fun tumarkRun(context: Context) {
             Log.d("tumark", it)
         }
     )
+    db.close()
 }
 
 fun tumarkRun(
@@ -39,7 +40,7 @@ fun tumarkRun(
     deleteEntry: (e: ExamEntry) -> Unit,
     updateEntry: (e: ExamEntry) -> Unit,
     insertEntry: (e: ExamEntry) -> Unit,
-    notifyImportant: (ns: List<NotificationData>) -> Unit,
+    notify: (diff: Diff) -> Unit,
     log: (s: String) -> Unit = {}
 ) {
     // Retrieve login information
@@ -77,16 +78,7 @@ fun tumarkRun(
     log("Updating ${diff.updated.joinToString()}")
     diff.updated.forEach(updateEntry)
 
-    // Create Notifications
-    log("Creating notification data")
-    val ns = diff.updated.map {
-        NotificationData(
-            "${it.identifier}: ${it.grade}",
-            "${it.name} (${it.credits} cp) updated to ${it.status}."
-        )
-    }
-
     // Notify user
     log("Notifying users")
-    notifyImportant(ns)
+    notify(diff)
 }
