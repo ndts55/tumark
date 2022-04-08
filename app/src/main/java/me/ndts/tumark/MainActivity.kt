@@ -39,10 +39,11 @@ class MainActivity : AppCompatActivity() {
         passwordEditText = binding.contentMain.mainLayout.findViewById(R.id.password)
 
         val context = this.applicationContext
-        CoroutineScope(Dispatchers.Default).launch {
+        CoroutineScope(Dispatchers.IO).launch {
             tuIdEditText.setText(context.readTuId())
             passwordEditText.setText(context.readPassword())
         }
+        context.enqueueGradeWorker()
     }
 
     private fun onFabClick() {
@@ -60,7 +61,6 @@ class MainActivity : AppCompatActivity() {
             context.writePassword(password)
         }
 
-        // TODO Run this in an AsyncTask
         CoroutineScope(Dispatchers.IO).launch {
             tumarkRun(context)
         }
