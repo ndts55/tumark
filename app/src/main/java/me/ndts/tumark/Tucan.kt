@@ -2,67 +2,86 @@ package me.ndts.tumark
 
 import org.jsoup.Connection
 import org.jsoup.Connection.Response
-import org.jsoup.Jsoup
 
 const val BaseTucanUrl = "https://www.tucan.tu-darmstadt.de"
 const val UserAgent = "Mozilla/5.0"
 
-fun retrieveGrades(tuId: String, password: String): Set<ExamEntry> {
-    val (loggedInResponse, cookies) = login(tuId, password)
-    return loggedInResponse // Retrieve HTML of logged in main page.
-        .parse()
-        .getElementById("link000324") // Retrieve link for field with text 'Modulergebnisse' or 'Module Results'.
-        .child(0)
-        .attr("abs:href")
-        .connect()
-        .cookies(cookies) // Always set our cookies before sending a request.
-        .execute() // 'Click' on 'Modulergebnisse' / 'Module Results'.
-        .parse()
-        .getElementsByClass("nb list") // Extract data from the module results table.
-        .first()
-        .child(1)
-        .children()
-        .dropLast(1) // Remove last child because it contains the summary of all modules.
-        .map {
-            ExamEntry(
-                identifier = it.child(0).text().trim(),
-                name = it.child(1).text().trim(),
-                grade = it.child(2).text().trim(),
-                credits = it.child(3).text().trim(),
-                status = it.child(4).text().trim(),
+fun retrieveGrades(tuId: String, password: String): Result<Set<ExamEntry>> =
+    login(tuId, password)
+        .flatMap { (loggedInResponse, cookies) ->
+            loggedInResponse
+                .safeParse() // Retrieve HTML of logged in main page.
+                .map { document -> document.getElementById("link000324") }
+                .filter(Exception("unable to find module results link")) { it != null }
+                .flatMap { element -> element.safeChild(0) }
+                .map { element -> element.attr("abs:href") }
+                .filter(Exception("module results link is empty")) { it.isNotEmpty() }
+                .map { url -> url.connect().cookies(cookies) }
+                .flatMap(Connection::safeExecute)
+        }
+        .flatMap(Response::safeParse)
+        .map { document -> document.getElementsByClass("nb list").first() }
+        .filter(Exception("unable to find module results table")) { it != null }
+        .flatMap { element -> element.safeChild(1) }
+        .map { table ->
+            table
+                .children()
+                .dropLast(1) // Remove the last child because it contains the summary of all modules.
+                .map {
+                    ExamEntry(
+                        identifier = it.safeChild(0).map { c -> c.text().trim() }.getOrDefault(""),
+                        name = it.safeChild(1).map { c -> c.text().trim() }.getOrDefault(""),
+                        grade = it.safeChild(2).map { c -> c.text().trim() }.getOrDefault(""),
+                        credits = it.safeChild(3).map { c -> c.text().trim() }.getOrDefault(""),
+                        status = it.safeChild(4).map { c -> c.text().trim() }.getOrDefault(""),
+                    )
+                }
+                .toSet()
+        }
+
+
+private fun login(tuId: String, password: String): Result<Pair<Response, Map<String, String>>> =
+    requestTucanMainPage()
+        .flatMap(Connection::safeExecute) // Load the main page.
+        .flatMap(Response::loginActionLink) // Extract the login form submission link.
+        .map { actionLink ->
+            actionLink
+                .connect()
+                .postLoginData(tuId, password) // Setup connection to post login data.
+        }
+        .flatMap(Connection::safeExecute)
+        .map { responsePostLogin ->
+            Pair(
+                if (responsePostLogin.statusCode() != 200) {
+                    responsePostLogin
+                } else {
+                    responsePostLogin
+                        .requestLoggedInMainPage()
+                        .flatMap(Connection::safeExecute)
+                        .getOrDefault(responsePostLogin)
+                },
+                responsePostLogin.cookies()
             )
         }
-        .toSet()
-}
 
-private fun login(tuId: String, password: String): Pair<Response, Map<String, String>> {
-    val responsePostLogin = requestTucanMainPage()
-        .execute() // Load the main page.
-        .loginActionLink() // Extract the login form submission link.
-        .connect()
-        .postLoginData(tuId, password) // Setup connection to post the login data.
-        .execute()
-    return Pair(
-        if (responsePostLogin.statusCode() != 200) {
-            responsePostLogin
-        } else {
-            responsePostLogin.requestLoggedInMainPage().execute()
-        },
-        responsePostLogin.cookies()
-    )
-}
-
-private fun requestTucanMainPage(): Connection =
+private fun requestTucanMainPage(): Result<Connection> =
     BaseTucanUrl
         .connect()
-        .get() // Retrieve page at base URL.
-        .getElementsByClass("img_LangGerman") // 'Click' the first link with this class.
-        .attr("abs:href") // This is really just to navigate the redirects and intermediate pages.
-        .connect()
-        .execute()
-        .skipTucanIntermediatePage() // Skip the actual intermediate page.
-        .referrer(BaseTucanUrl)
-        .userAgent(UserAgent)
+        .safeGet()
+        .map { document ->
+            document
+                .getElementsByClass("img_LangGerman") // 'Click' the first link with this class.
+                .attr("abs:href") // This is really just to navigate the redirects and intermediate pages.
+        }
+        .filter(Exception("intermediate page link is empty")) { it.isNotEmpty() }
+        .map(String::connect)
+        .flatMap(Connection::safeExecute)
+        .flatMap(Response::skipTucanIntermediatePage)
+        .map { connection ->
+            connection
+                .referrer(BaseTucanUrl)
+                .userAgent(UserAgent)
+        }
 
 private fun Connection.postLoginData(tuId: String, password: String): Connection =
     // Setup connection to post the login data.
@@ -87,29 +106,42 @@ private fun createPostData(tuId: String, password: String): Map<String, String> 
     Pair("platform", ""),
 )
 
-private fun Response.requestLoggedInMainPage(): Connection =
-    // Create connection to request the logged in main page.
+private fun Response.requestLoggedInMainPage(): Result<Connection> =
     this
         .refreshUrl()
-        .connect()
-        .cookies(this.cookies())
-        .execute()
-        .skipTucanIntermediatePage()
-        .referrer(BaseTucanUrl)
-        .userAgent(UserAgent)
-        .cookies(this.cookies()) // Set response cookies as new request cookies as they contain the new cnsc number.
+        .map { url -> url.connect().cookies(this.cookies()) }
+        .flatMap(Connection::safeExecute)
+        .flatMap(Response::skipTucanIntermediatePage)
+        .map { connection ->
+            connection
+                .referrer(BaseTucanUrl)
+                .userAgent(UserAgent)
+                .cookies(this.cookies()) // Set response cookies as new request cookies as they contain the new cnsc number.
+        }
 
-private fun String.connect(): Connection =
-    Jsoup.connect(this)
+private fun Response.refreshUrl(): Result<String> =
+    try {
+        Result.success(
+            // Construct the absolute refresh URL from the header data.
+            BaseTucanUrl + this.header("REFRESH").split(";")[1].substringAfter(" URL=")
+        )
+    } catch (e: Exception) {
+        Result.failure(e)
+    }
 
-private fun Response.refreshUrl(): String =
-    // Construct the absolute refresh URL from the header data.
-    BaseTucanUrl + this.header("REFRESH").split(";")[1].substringAfter(" URL=")
+private fun Response.loginActionLink(): Result<String> =
+    this
+        .safeParse()
+        .map { document -> document.getElementById("cn_loginForm") }
+        .filter(Exception("unable to find login form")) { it != null }
+        .map { it.attr("abs:action") }
+        .filter(Exception("action link is empty")) { it.isNotEmpty() }
 
-private fun Response.loginActionLink(): String =
-    // Get form by id and get relative link in `action` attribute as an absolute link.
-    this.parse().getElementById("cn_loginForm").attr("abs:action")
-
-private fun Response.skipTucanIntermediatePage(): Connection =
-    // Select the second link and get its relative link in `href` as an absolute link.
-    this.parse().select("a")[1].attr("abs:href").connect()
+private fun Response.skipTucanIntermediatePage(): Result<Connection> =
+    this
+        .safeParse()
+        .map { it.select("a") }
+        .filter(Exception("main page link not found")) { it.size > 1 }
+        .map { it[1].attr("abs:href") }
+        .filter(Exception("main page link is empty")) { it.isNotEmpty() }
+        .map(String::connect)
