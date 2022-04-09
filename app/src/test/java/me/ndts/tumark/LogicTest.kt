@@ -38,7 +38,7 @@ class LogicTest {
         tumarkRun("", "",
             { _, _ ->
                 gre = true
-                remoteEntries
+                Result.success(remoteEntries)
             },
             {
                 gle = true
@@ -69,7 +69,7 @@ class LogicTest {
         tumarkRun("ab12cdef", "1324",
             { _, _ ->
                 gre = true
-                remoteEntries
+                Result.success(remoteEntries)
             },
             {
                 gle = true
@@ -104,7 +104,7 @@ class LogicTest {
         tumarkRun("ab12cdef", "1324",
             { _, _ ->
                 gre = true
-                remoteEntries
+                Result.success(remoteEntries)
             },
             {
                 gle = true
@@ -139,7 +139,7 @@ class LogicTest {
         tumarkRun("ab12cdef", "1324",
             { _, _ ->
                 gre = true
-                setOf(remoteThesis)
+                Result.success(setOf(remoteThesis))
             },
             {
                 gle = true
@@ -176,7 +176,7 @@ class LogicTest {
         tumarkRun("ab12cdef", "1324",
             { _, _ ->
                 gre = true
-                remoteEntries
+                Result.success(remoteEntries)
             },
             {
                 gle = true
@@ -205,5 +205,36 @@ class LogicTest {
         assert(ins)
         assertEquals(insertedEntries, setOf(remoteThesis))
         assert(nou)
+    }
+
+    @Test
+    fun `tumark returns early when retrieving remote data fails`() {
+        var gre = false
+        var gle = false
+        var del = false
+        var upd = false
+        var ins = false
+        var nou = false
+        tumarkRun("ab12cdef", "1324",
+            { _, _ ->
+                gre = true
+                Result.failure(Exception(":')"))
+            },
+            {
+                gle = true
+                setOf(localSdms, extraCourse)
+            },
+            { del = true },
+            { upd = true },
+            { ins = true },
+            { nou = true }
+        )
+
+        assert(gre)
+        assert(!gle)
+        assert(!del)
+        assert(!upd)
+        assert(!ins)
+        assert(!nou)
     }
 }

@@ -35,7 +35,7 @@ suspend fun tumarkRun(context: Context) {
 
 fun tumarkRun(
     tuId: String, password: String,
-    getRemoteEntries: (u: String, p: String) -> Set<ExamEntry>,
+    getRemoteEntries: (u: String, p: String) -> Result<Set<ExamEntry>>,
     getLocalEntries: () -> Set<ExamEntry>,
     deleteEntry: (e: ExamEntry) -> Unit,
     updateEntry: (e: ExamEntry) -> Unit,
@@ -51,14 +51,14 @@ fun tumarkRun(
 
     // Retrieve remote data
     log("Retrieving remote data")
-    val remoteEntries: Set<ExamEntry>
-    try {
-        remoteEntries = getRemoteEntries(tuId, password)
-    } catch (e: Exception) {
-        log("Error retrieving remote data")
-        log(e.toString())
+    val remoteEntriesResult = getRemoteEntries(tuId, password)
+    remoteEntriesResult.onFailure {
+        log("Retrieving remote data failed.")
+        log(it.stackTraceToString())
+        it.printStackTrace()
         return
     }
+    val remoteEntries = remoteEntriesResult.getOrDefault(emptySet())
     log("Retrieved ${remoteEntries.joinToString()} from remote")
 
     // Retrieve local data
